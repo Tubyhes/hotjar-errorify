@@ -1,8 +1,8 @@
 
 from flask import Flask, request, g, make_response
 from flask.json import jsonify
-from services.db_elasticsearch import DBElasticsearch
-from services.auth_stub import AuthStub
+from .services.db_elasticsearch import DBElasticsearch
+from .services.auth_stub import AuthStub
 import time
 
 app = Flask(__name__)
