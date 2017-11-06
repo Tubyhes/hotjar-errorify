@@ -11,12 +11,22 @@ class ApiTestCase (unittest.TestCase):
 		main.app.testing = True
 		self.app = main.app.test_client()
 		self.es = Elasticsearch()
-		res = self.es.indices.create(index="error_logs", body={"mappings": {"javascript": {"_routing": {"required": True}}}})
+		create_index_body = {
+			"mappings": {
+				"javascript": {
+					"_routing": {
+						"required": True
+					},
+					"properties": {
+						"_tracker_id": { 
+							"type": "string"
+						}
+					}
+				}
+			}
+		}
 
-
-	def test_hello_world (self):
-		rv = self.app.get("/")
-		assert rv.status_code == 200
+		res = self.es.indices.create(index="error_logs", body=create_index_body)
 
 
 	def test_providing_headers (self):
@@ -27,6 +37,10 @@ class ApiTestCase (unittest.TestCase):
 		# forgot to add tracker_id
 		rv = self.app.post("/data", data = json.dumps({"herp": "derp"}), content_type = "application/json")
 		assert rv.status_code == 400
+
+		# provided non-existing tracker id
+		rv = self.app.post("/data", headers = [("x-tracker_id", "4563452757")])
+		assert rv.status_code == 401
 
 		# forgot to add session_id in get
 		rv = self.app.get("/data", headers = [("x-tracker_id", "1234567890")])
@@ -84,6 +98,43 @@ class ApiTestCase (unittest.TestCase):
 		d = json.loads(rv.data)
 		assert len(d) == 10
 		assert d[0]["line_nr"] == total - 11
+
+
+	def test_searching_data (self):
+		# insert some data that we can search for
+		for x in range (10):
+			rv = self.app.post("/data", data = json.dumps({"herp": "derp", "line_nr": x%2+1}), content_type = "application/json", headers = [("x-tracker_id", "1234567890")])
+			assert rv.status_code == 201
+
+		for x in range (10):
+			rv = self.app.post("/data", data = json.dumps({"herp": "derp", "line_nr": x%2+3}), content_type = "application/json", headers = [("x-tracker_id", "2345678901")])
+			assert rv.status_code == 201
+
+		for x in range (10):
+			rv = self.app.post("/data", data = json.dumps({"herp": "derp", "line_nr": x%2+1}), content_type = "application/json", headers = [("x-tracker_id", "0987654321")])
+			assert rv.status_code == 201
+
+		# search for errors in line 2 for tracker_id 1234567890
+		rv = self.app.get("/search", content_type = "application/json", data=json.dumps({"query": {"match": {"line_nr": 2}}}), headers = [("x-tracker_id", "1234567890"),  ("x-session_id", "abcdef")])
+		assert rv.status_code == 200
+		d = json.loads(rv.data)
+		r = [x["_source"] for x in d["hits"]["hits"]]
+		assert len(r) == 5
+
+		# search for errors in line 2 for tracker_id 2345678901
+		rv = self.app.get("/search", content_type = "application/json", data=json.dumps({"query": {"match": {"line_nr": 2}}}), headers = [("x-tracker_id", "2345678901"),  ("x-session_id", "abcdef")])
+		assert rv.status_code == 200
+		d = json.loads(rv.data)
+		r = [x["_source"] for x in d["hits"]["hits"]]
+		assert len(r) == 0
+
+		# return top 10 lines with errors for tracker_id 0987654321
+		rv = self.app.get("/search", content_type = "application/json", data=json.dumps({"size": 0, "aggs": {"group_by_line": {"terms": {"field": "line_nr"}}}}), headers = [("x-tracker_id", "0987654321"),  ("x-session_id", "qwerty")])
+		assert rv.status_code == 200
+		d = json.loads(rv.data)
+		print d
+		print rv.data
+
 
 	def tearDown(self):
 		self.es.indices.delete("error_logs")

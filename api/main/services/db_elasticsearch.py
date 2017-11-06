@@ -15,32 +15,41 @@ class DBElasticsearch ():
 								refresh = True)
 
 	def retrieve (self, tracker_id, from_, size):
-		res = self.es.search (	index = self.index_name,
+		if not self.exists_filter_alias(tracker_id):
+			return []
+
+		res = self.es.search (	index = tracker_id,
 								doc_type = self.type_name,
 								routing = tracker_id, 
 								from_ = from_,
 								size = size,
 								sort = "_time:desc",
-								body = {"query": {"match": {"_tracker_id": tracker_id}}})
+								body = {"query": {"match_all": {}}})
 
 		return [x["_source"] for x in res["hits"]["hits"]]
+
+	def put_filter_alias (self, tracker_id):
+		res = self.es.indices.put_alias (	index = self.index_name,
+											name = tracker_id,
+											body = {"routing": tracker_id, "filter": {"term": {"_tracker_id": tracker_id}}})
+
+	def exists_filter_alias (self, tracker_id):
+		res = self.es.indices.exists_alias (index = self.index_name,
+											name = tracker_id)
+		return res
 
 	def search (self, tracker_id, query):
-		body = 	{ 
-					"query": {
-						"bool": {
-							"must": [
-								{"match": {"_tracker_id": tracker_id}},
-								query
-							]
-						}
-					}
-				}
+		if not self.exists_filter_alias(tracker_id):
+			return []
 
-		res = self.es.search ( 	index = self.index_name,
+		res = self.es.search ( 	index = tracker_id,
 								doc_type = self.type_name,
-								routing = tracking_id,
-								body = body)
-		
-		return [x["_source"] for x in res["hits"]["hits"]]
+								routing = tracker_id,
+								body = query)
+		res.pop("_shards", None)
+		res.pop("took", None)
+		res.pop("timed_out", None)
+		return res
+
+
 

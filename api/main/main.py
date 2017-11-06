@@ -21,11 +21,6 @@ def connect_db():
 	return DBElasticsearch("error_logs", "javascript")
 
 
-@app.route("/")
-def hello():
-	return "Hello World"
-
-
 @app.route ("/data", methods=['GET'])
 def get_data ():
 
@@ -38,6 +33,10 @@ def get_data ():
 	session_id = request.headers.get("x-session_id")
 	if session_id is None:
 		return make_response(("No session id provided!", 401, []))
+
+	# verify this is an existing tracker_id or unauthorized
+	if not get_auth().valid_tracker(tracker_id):
+		return make_response(("Invalid tracker_id!", 401, []))
 
 	# verify this session id has access to this tracker id
 	if not get_auth().authorized(tracker_id, session_id):
@@ -60,12 +59,20 @@ def store_data ():
 	if tracker_id is None:
 		return make_response(("No tracker id provided!", 400, []))
 
+	# verify this is an existing tracker_id or unauthorized
+	if not get_auth().valid_tracker(tracker_id):
+		return make_response(("Invalid tracker_id!", 401, []))
+
 	# get the data from the request payload, or bad request
 	data = request.get_json()
 	if data is None:
 		return make_response(("No data provided!", 400, []))
 	if not data:
 		return make_response(("Empty data provided!", 400, []))
+
+	# make sure there is an alias for this tracker_id
+	if not get_db().exists_filter_alias(tracker_id):
+		get_db().put_filter_alias(tracker_id)
 
 	# add the tracker id and timestamp to the data
 	data["_tracker_id"] = tracker_id
@@ -74,6 +81,39 @@ def store_data ():
 	# store data in database, return success
 	get_db().store(tracker_id, data)
 	return make_response(("Stored!", 201, []))
+
+
+@app.route ("/search", methods=['GET'])
+def search_data ():
+
+	# get tracker id from request header, or bad request 
+	tracker_id = request.headers.get("x-tracker_id")
+	if tracker_id is None:
+		return make_response(("No tracker id provided!", 400, []))
+
+	# get session id from request header, or unauthorized
+	session_id = request.headers.get("x-session_id")
+	if session_id is None:
+		return make_response(("No session id provided!", 401, []))
+
+	# verify this is an existing tracker_id or unauthorized
+	if not get_auth().valid_tracker(tracker_id):
+		return make_response(("Invalid tracker_id!", 401, []))
+
+	# verify this session id has access to this tracker id
+	if not get_auth().authorized(tracker_id, session_id):
+		return make_response(("Unauthorized!", 403, []))
+
+	# get the data from the request payload, or bad request
+	data = request.get_json()
+	if data is None:
+		return make_response(("No query provided!", 400, []))
+	if not data:
+		return make_response(("Empty query provided!", 400, []))
+
+	# if we get here, execute query on database and return results
+	v = get_db().search(tracker_id, data)
+	return jsonify(v)
 
 
 if (__name__) == "__main__":
