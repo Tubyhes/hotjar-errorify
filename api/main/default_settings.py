@@ -1,0 +1,1 @@
+ES_HOSTS = ["localhost:9200"]

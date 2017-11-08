@@ -1,0 +1,5 @@
+// store a data point locally
+curl -v -XPOST localhost:5000/data -H "Content-Type: application/json" -H "x-tracker_id: 1234567890" -d '{"herp":"derp"}'
+
+// store a data point in kubernetes
+curl -v -XPOST "http://192.168.99.100:31891/data" -H "Content-Type: application/json" -H "x-tracker_id: 1234567890" -d '{"herp":"derp"}'

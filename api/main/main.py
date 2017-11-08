@@ -7,7 +7,10 @@ import time
 
 app = Flask(__name__)
 app.config.from_object("main.default_settings")
-app.config.from_envvar("ERRORIFY_SETTINGS")
+try:
+	app.config.from_envvar("ERRORIFY_SETTINGS")
+except Exception as e:
+	pass
 
 def get_auth():
 	if not hasattr(g, "auth"):
