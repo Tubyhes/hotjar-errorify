@@ -2,10 +2,13 @@ from elasticsearch import Elasticsearch
 
 class DBElasticsearch ():
 
-	def __init__ (self, index_name, type_name):
+	def __init__ (self, index_name, type_name, hosts = []):
 		self.index_name = index_name
 		self.type_name = type_name
-		self.es = Elasticsearch()
+		if hosts == []:
+			self.es = Elasticsearch()
+		else:
+			self.es = Elasticsearch(hosts)
 
 	def store (self, tracker_id, body):
 		res = self.es.index (	index = self.index_name, 

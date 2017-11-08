@@ -6,6 +6,8 @@ from .services.auth_stub import AuthStub
 import time
 
 app = Flask(__name__)
+app.config.from_object("main.default_settings")
+app.config.from_envvar("ERRORIFY_SETTINGS")
 
 def get_auth():
 	if not hasattr(g, "auth"):
@@ -18,7 +20,10 @@ def get_db():
 	return g.db 
 
 def connect_db():
-	return DBElasticsearch("error_logs", "javascript")
+	if app.testing:
+		return DBElasticsearch("error_logs", "javascript")
+	else:
+		return DBElasticsearch("error_logs", "javascript", app.config["ES_HOSTS"])
 
 
 @app.route ("/data", methods=['GET'])
